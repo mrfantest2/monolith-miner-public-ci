@@ -66,9 +66,11 @@ class MainActivity : AppCompatActivity() {
         Fmt.scientificNotation = scientificNotation
 
         state = GameState.fromJson(getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null))
-        val offline = state.applyOffline(System.currentTimeMillis())
+        val startNow = System.currentTimeMillis()
+        val offlineSeconds = state.offlineElapsedSeconds(startNow)
+        val offline = state.applyOffline(startNow)
         if (offline > 0) {
-            showOfflineDialog(offline)
+            showOfflineDialog(offline, offlineSeconds)
             // Immediately commit collected offline earnings so relaunches cannot claim them twice.
             save()
         }
@@ -135,9 +137,11 @@ class MainActivity : AppCompatActivity() {
         // offline income and commit immediately so rotations/reopens cannot
         // collect the same absence twice.
         if (::state.isInitialized) {
-            val offline = state.applyOffline(System.currentTimeMillis())
+            val resumeNow = System.currentTimeMillis()
+            val offlineSeconds = state.offlineElapsedSeconds(resumeNow)
+            val offline = state.applyOffline(resumeNow)
             if (offline > 0.0) {
-                showOfflineDialog(offline)
+                showOfflineDialog(offline, offlineSeconds)
                 save()
                 refreshUi(true)
             }
@@ -244,11 +248,10 @@ class MainActivity : AppCompatActivity() {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, state.toJson()).apply()
     }
 
-    private fun showOfflineDialog(gain: Double) {
-        val secs = ((System.currentTimeMillis() - state.lastSaveMs) / 1000L).coerceIn(0L, Defs.MAX_OFFLINE_SECONDS)
+    private fun showOfflineDialog(gain: Double, elapsedSeconds: Long) {
         MaterialAlertDialogBuilder(this)
             .setTitle("Welcome back")
-            .setMessage("Your miners dug for ${Fmt.duration(secs)} while you were away and brought back ${Fmt.num(gain)} ore (${(state.offlineFraction() * 100).toInt()}% efficiency).")
+            .setMessage("Your miners dug for ${Fmt.duration(elapsedSeconds)} while you were away and brought back ${Fmt.num(gain)} ore (${(state.offlineFraction() * 100).toInt()}% efficiency).")
             .setPositiveButton("Collect", null)
             .show()
     }

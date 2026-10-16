@@ -347,10 +347,19 @@ class GameState {
 
     // ----- Offline earnings -----
 
+    /** Capture elapsed time before applying rewards, which consumes the save timestamp. */
+    fun offlineElapsedSeconds(nowMs: Long): Long =
+        ((nowMs - lastSaveMs) / 1000L).coerceIn(0L, Defs.MAX_OFFLINE_SECONDS)
+
     /** Applies offline progress; returns the ore gained (0 if none worth reporting). */
     fun applyOffline(nowMs: Long): Double {
-        val elapsed = ((nowMs - lastSaveMs) / 1000L).coerceIn(0L, Defs.MAX_OFFLINE_SECONDS)
-        if (elapsed < 60) return 0.0
+        val elapsed = offlineElapsedSeconds(nowMs)
+        if (elapsed < 60) {
+            // Consume short absences to prevent accumulating active play time
+            // into a later offline claim after many short resumes.
+            lastSaveMs = nowMs
+            return 0.0
+        }
         // Integrate at each boost-expiration boundary to avoid applying a
         // ten-minute boost to an entire eight-hour offline absence.
         val startMs = nowMs - elapsed * 1000L
