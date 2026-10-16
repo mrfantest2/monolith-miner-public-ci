@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Monolith Miner</string>
+    <string name="tab_miners">Miners</string>
+    <string name="tab_upgrades">Upgrades</string>
+    <string name="tab_ascend">Ascend</string>
+    <string name="buy_1">x1</string>
+    <string name="buy_10">x10</string>
+    <string name="buy_max">Max</string>
+</resources>
