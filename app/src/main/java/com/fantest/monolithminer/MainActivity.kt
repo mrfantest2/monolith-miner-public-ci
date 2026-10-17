@@ -144,11 +144,13 @@ class MainActivity : AppCompatActivity() {
         // offline income and commit immediately so rotations/reopens cannot
         // collect the same absence twice.
         if (::state.isInitialized) {
+            // A rewarded ad is intentional gameplay, not a return from a long absence.
+            val returningFromRewardedAd = gameAds?.consumeRewardedAdReturn() == true
             val resumeNow = System.currentTimeMillis()
             val offlineSeconds = state.offlineElapsedSeconds(resumeNow)
             val offline = state.applyOffline(resumeNow)
             if (offline > 0.0) {
-                showOfflineDialog(offline, offlineSeconds)
+                if (!returningFromRewardedAd) showOfflineDialog(offline, offlineSeconds)
                 save()
                 refreshUi(true)
             }

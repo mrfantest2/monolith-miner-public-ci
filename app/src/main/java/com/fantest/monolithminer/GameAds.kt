@@ -33,11 +33,19 @@ class GameAds(
     private var rewardLoading = false
     private var rewardLoadFailed = false
     private var showingReward = false
+    private var rewardedAdReturnPending = false
     private var disposed = false
 
     val isRewardReady: Boolean get() = !disposed && rewarded != null && !showingReward
     val canRetryReward: Boolean get() = !disposed && sdkStarted && rewardLoadFailed && !rewardLoading
     fun retryReward() { if (canRetryReward) loadReward() }
+
+    /** Consume the pending ad-to-game transition once, without suppressing earned idle ore. */
+    fun consumeRewardedAdReturn(): Boolean {
+        val pending = rewardedAdReturnPending
+        rewardedAdReturnPending = false
+        return pending
+    }
     val privacyOptionsRequired: Boolean get() =
         BuildConfig.ADS_ENABLED && consent.privacyOptionsRequirementStatus ==
             ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
@@ -132,6 +140,7 @@ class GameAds(
         val ad = rewarded ?: return false
         rewarded = null
         showingReward = true
+        rewardedAdReturnPending = true
         onReadyChanged()
         var delivered = false
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {

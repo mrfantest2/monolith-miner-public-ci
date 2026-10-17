@@ -8,7 +8,7 @@ Canonical GitHub repository: https://github.com/mrfantest2/monolith-miner
 
 Canonical checkpoint branch: checkpoint/cp18-admob-monetization
 
-Canonical source checkpoint SHA: 61d9e25da74cc8cbccd716078e2f73aafadf57a8
+Canonical source checkpoint SHA: 80750531f0deb9396f6160f64a48f67fce569cfc
 
 GitHub-hosted CI executes JVM tests and builds debug and isolated preview
 APKs. This mirror contains no Play upload keystore, Play credentials,
