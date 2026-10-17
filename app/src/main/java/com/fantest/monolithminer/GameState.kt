@@ -174,6 +174,17 @@ class GameState {
         return true
     }
 
+    /** Optional rewarded ads activate existing boosts without subtracting ore. */
+    fun grantRewardedBoost(type: BoostType, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (boostRemainingMs(type, nowMs) > 0L) return false
+        val until = nowMs + boostDurationMs(type)
+        when (type) {
+            BoostType.DOUBLE_ORE -> doubleOreUntilMs = until
+            BoostType.OVERDRIVE -> overdriveUntilMs = until
+        }
+        return true
+    }
+
     /** Number of obelisks broken since the UI last asked; used for effects. */
     var breaksPending = 0
 

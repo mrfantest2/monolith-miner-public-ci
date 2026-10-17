@@ -13,23 +13,19 @@ val releaseSigningConfigured = listOf(releaseStoreFile, releaseStorePassword, re
 // AdMob identifiers are app-specific. No Gnome Score or other game's IDs.
 val prodApp = providers.gradleProperty("monolithAdmobAppId").orElse(
     providers.environmentVariable("MONOLITH_ADMOB_APP_ID")).orNull.orEmpty()
-val prodBanner = providers.gradleProperty("monolithAdmobBannerId").orElse(
-    providers.environmentVariable("MONOLITH_ADMOB_BANNER_ID")).orNull.orEmpty()
 val prodReward = providers.gradleProperty("monolithAdmobRewardedId").orElse(
     providers.environmentVariable("MONOLITH_ADMOB_REWARDED_ID")).orNull.orEmpty()
-val prodIds = listOf(prodApp, prodBanner, prodReward)
+val prodIds = listOf(prodApp, prodReward)
 require(prodIds.all { it.isEmpty() } || prodIds.all { it.isNotEmpty() }) {
-    "Provide all three Monolith AdMob IDs or none."
+    "Provide both Monolith AdMob app and rewarded unit IDs or neither."
 }
 val prodEnabled = prodApp.matches(Regex("ca-app-pub-[0-9]{16}~[0-9]{10}")) &&
-    prodBanner.matches(Regex("ca-app-pub-[0-9]{16}/[0-9]{10}")) &&
     prodReward.matches(Regex("ca-app-pub-[0-9]{16}/[0-9]{10}")) &&
     !prodApp.startsWith("ca-app-pub-3940256099942544")
 require(prodIds.all { it.isEmpty() } || prodEnabled) {
     "Monolith AdMob IDs must be valid non-test IDs."
 }
 val testApp = "ca-app-pub-3940256099942544~3347511713"
-val testBanner = "ca-app-pub-3940256099942544/9214589741"
 val testReward = "ca-app-pub-3940256099942544/5224354917"
 
 android {
@@ -68,7 +64,6 @@ android {
         debug {
             manifestPlaceholders["admobAppId"] = testApp
             buildConfigField("boolean", "ADS_ENABLED", "true")
-            buildConfigField("String", "ADMOB_BANNER_UNIT_ID", "\"$testBanner\"")
             buildConfigField("String", "ADMOB_REWARDED_UNIT_ID", "\"$testReward\"")
         }
         // Side-by-side preview build: never replaces the Google Play-signed app.
@@ -82,8 +77,6 @@ android {
             // No live ads are requested until all Monolith-specific IDs are supplied.
             manifestPlaceholders["admobAppId"] = if (prodEnabled) prodApp else testApp
             buildConfigField("boolean", "ADS_ENABLED", prodEnabled.toString())
-            buildConfigField("String", "ADMOB_BANNER_UNIT_ID",
-                "\"${if (prodEnabled) prodBanner else testBanner}\"")
             buildConfigField("String", "ADMOB_REWARDED_UNIT_ID",
                 "\"${if (prodEnabled) prodReward else testReward}\"")
             if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("playUpload")

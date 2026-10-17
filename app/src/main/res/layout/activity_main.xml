@@ -189,9 +189,4 @@
             android:paddingHorizontal="8dp"
             android:paddingTop="4dp" />
     </LinearLayout>
-    <FrameLayout
-        android:id="@+id/adViewContainer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone" />
 </LinearLayout>

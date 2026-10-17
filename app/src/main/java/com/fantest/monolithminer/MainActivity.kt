@@ -132,7 +132,7 @@ class MainActivity : AppCompatActivity() {
             refreshUi(false)
         }
         refreshUi(true)
-        gameAds = GameAds(this, binding.adViewContainer) {
+        gameAds = GameAds(this) {
             if (::state.isInitialized) refreshUi(true)
         }
         gameAds?.start()
@@ -156,11 +156,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.gameView.start()
-        gameAds?.onResume()
     }
 
     override fun onPause() {
-        gameAds?.onPause()
         binding.gameView.stop()
         save()
         super.onPause()
@@ -216,26 +214,73 @@ class MainActivity : AppCompatActivity() {
     private fun rewardedCooldownRemaining(now: Long = System.currentTimeMillis()): Long =
         (rewardedAtMs + REWARDED_COOLDOWN_MS - now).coerceAtLeast(0L)
 
-    private fun watchRewardedOre() {
-        if (rewardedCooldownRemaining() > 0L) return
-        gameAds?.showReward {
-            // Save immediately. No reward is granted for a failed or skipped ad.
-            if (rewardedCooldownRemaining() == 0L) {
-                val amount = state.claimRewardedOre()
-                rewardedAtMs = System.currentTimeMillis()
-                getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
-                    .edit().putLong(KEY_REWARDED_AT, rewardedAtMs).commit()
-                save()
-                refreshUi(true)
-                MaterialAlertDialogBuilder(this)
-                    .setTitle("Sponsored ore cache")
-                    .setMessage("Collected ${Fmt.num(amount)} ore. Thanks for supporting Monolith Miner!")
-                    .setPositiveButton("Continue", null)
-                    .show()
-            }
+    /** A single in-world reward card, never a permanent banner or pop-up. */
+    private fun supplyRow(): Row? {
+        if (!BuildConfig.ADS_ENABLED) return null
+        val remaining = rewardedCooldownRemaining()
+        val button = when {
+            remaining > 0L -> remainingClock(remaining)
+            gameAds?.isRewardReady == true -> "CHOOSE"
+            gameAds?.canRetryReward == true -> "RETRY"
+            else -> "LOADING"
+        }
+        return Row("Supply Terminal",
+            if (remaining > 0L) "Supply delivered. A new optional reward arrives later."
+            else "One optional video. Choose a useful mining reward; no forced ads.",
+            button, remaining == 0L &&
+                (gameAds?.isRewardReady == true || gameAds?.canRetryReward == true)
+        ) {
+            if (gameAds?.canRetryReward == true) gameAds?.retryReward()
+            else openSupplyTerminal()
         }
     }
 
+    private fun openSupplyTerminal() {
+        if (rewardedCooldownRemaining() > 0L || gameAds?.isRewardReady != true) return
+        val offers = mutableListOf<Pair<String, () -> String>>()
+        offers += "Ore Shipment - ${Fmt.num(state.rewardedOreAmount())} ore" to {
+            "Delivered ${Fmt.num(state.claimRewardedOre())} ore."
+        }
+        if (state.boostRemainingMs(BoostType.DOUBLE_ORE) == 0L) {
+            offers += "Golden Shift - 2x ore, 15 min" to {
+                if (state.grantRewardedBoost(BoostType.DOUBLE_ORE)) {
+                    "Golden Shift activated for 15 minutes."
+                } else "Already active. Delivered ${Fmt.num(state.claimRewardedOre())} ore instead."
+            }
+        }
+        if (state.minerLevels.any { it > 0 } && state.boostRemainingMs(BoostType.OVERDRIVE) == 0L) {
+            offers += "Drill Overdrive - 3x miners, 10 min" to {
+                if (state.grantRewardedBoost(BoostType.OVERDRIVE)) {
+                    "Drill Overdrive activated for 10 minutes."
+                } else "Already active. Delivered ${Fmt.num(state.claimRewardedOre())} ore instead."
+            }
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Choose one video reward")
+            .setItems(offers.map { it.first }.toTypedArray()) { _, which ->
+                val deliver = offers[which].second
+                if (rewardedCooldownRemaining() > 0L || gameAds?.isRewardReady != true) {
+                    return@setItems
+                }
+                gameAds?.showReward {
+                    if (rewardedCooldownRemaining() == 0L) {
+                        val message = deliver()
+                        rewardedAtMs = System.currentTimeMillis()
+                        save()
+                        getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                            .edit().putLong(KEY_REWARDED_AT, rewardedAtMs).commit()
+                        refreshUi(true)
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("Supply delivered")
+                            .setMessage(message)
+                            .setPositiveButton("Continue", null)
+                            .show()
+                    }
+                }
+            }
+            .setNegativeButton("Not now", null)
+            .show()
+    }
     private fun remainingClock(ms: Long): String {
         val secs = (ms + 999L) / 1000L
         return "${secs / 60}:${(secs % 60).toString().padStart(2, '0')}"
@@ -396,7 +441,7 @@ class MainActivity : AppCompatActivity() {
                 ) {}
             }
         }
-        Tab.EXTRAS -> listOf(
+        Tab.EXTRAS -> listOfNotNull(
             Row(
                 "Biome gallery",
                 if (biomePreviewIndex < 0) {
@@ -446,6 +491,7 @@ class MainActivity : AppCompatActivity() {
                     refreshUi(true)
                 }
             },
+            supplyRow(),
             boostRow(
                 BoostType.DOUBLE_ORE,
                 "Double Ore",
@@ -493,37 +539,13 @@ class MainActivity : AppCompatActivity() {
                 "Monolith Miner v${BuildConfig.VERSION_NAME} • Animated adventure build",
                 "", false
             ) {}
-        ) + if (BuildConfig.ADS_ENABLED) {
-            listOf(
-                Row(
-                    "Sponsored ore cache",
-                    if (rewardedCooldownRemaining() > 0L) {
-                        "Reward claimed. Another optional ad becomes available later."
-                    } else {
-                        "Watch an optional ad for ${Fmt.num(state.rewardedOreAmount())} ore."
-                    },
-                    when {
-                        rewardedCooldownRemaining() > 0L -> remainingClock(rewardedCooldownRemaining())
-                        gameAds?.isRewardReady == true -> "WATCH AD"
-                        gameAds?.canRetryReward == true -> "RETRY"
-                        else -> "LOADING"
-                    },
-                    rewardedCooldownRemaining() == 0L &&
-                        (gameAds?.isRewardReady == true || gameAds?.canRetryReward == true)
-                ) {
-                    if (gameAds?.canRetryReward == true) gameAds?.retryReward()
-                    else watchRewardedOre()
-                }
-            ) + if (gameAds?.privacyOptionsRequired == true) {
-                listOf(Row(
-                    "Ad privacy choices",
-                    "Update advertising consent preferences.",
-                    "MANAGE", true
-                ) { gameAds?.showPrivacyOptions() })
-            } else emptyList()
+        ) + if (gameAds?.privacyOptionsRequired == true) {
+            listOf(Row("Ad privacy choices",
+                "Update advertising consent preferences.",
+                "MANAGE", true
+            ) { gameAds?.showPrivacyOptions() })
         } else emptyList()
     }
-
     private fun max1(n: Int) = if (n < 1) 1 else n
 
     private fun confirmAscend(gain: Int) {

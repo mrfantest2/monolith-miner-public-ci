@@ -1,15 +1,10 @@
 package com.fantest.monolithminer
 
-import android.view.View
-import android.widget.FrameLayout
-import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.ump.ConsentInformation
@@ -17,17 +12,15 @@ import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 
 /**
- * Non-invasive monetization: banner below the scrollable UI and a player-initiated
- * rewarded ore cache. The preview/debug builds use Google's sample inventory only.
+ * Non-invasive monetization: player-initiated rewards only. No banners or
+ * interstitials. The preview/debug builds use Google test inventory only.
  * Release builds never request ads until Monolith-specific production IDs are provided.
  */
 class GameAds(
     private val activity: MainActivity,
-    private val bannerHost: FrameLayout,
     private val onReadyChanged: () -> Unit
 ) {
     private val consent = UserMessagingPlatform.getConsentInformation(activity)
-    private var adView: AdView? = null
     private var rewarded: RewardedAd? = null
     private var sdkStarted = false
     private var rewardLoading = false
@@ -51,7 +44,6 @@ class GameAds(
             ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
 
     fun start() {
-        bannerHost.visibility = View.GONE
         if (!BuildConfig.ADS_ENABLED) return
         // Check at every application launch; an existing consent can allow ads immediately.
         consent.requestConsentInfoUpdate(
@@ -79,34 +71,10 @@ class GameAds(
             MobileAds.initialize(activity) {
                 activity.runOnUiThread {
                     if (disposed) return@runOnUiThread
-                    setupBanner()
                     loadReward()
                 }
             }
         }.start()
-    }
-
-    private fun setupBanner() {
-        if (adView != null || disposed) return
-        // A compact anchored banner sits outside the tappable mining field and tabs.
-        val widthDp = (bannerHost.resources.displayMetrics.widthPixels /
-            bannerHost.resources.displayMetrics.density).toInt().coerceAtLeast(1)
-        val view = AdView(activity)
-        view.adUnitId = BuildConfig.ADMOB_BANNER_UNIT_ID
-        view.setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activity, widthDp))
-        view.adListener = object : AdListener() {
-            override fun onAdLoaded() {
-                if (!disposed) bannerHost.visibility = View.VISIBLE
-            }
-
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                bannerHost.visibility = View.GONE
-            }
-        }
-        adView = view
-        bannerHost.removeAllViews()
-        bannerHost.addView(view)
-        view.loadAd(AdRequest.Builder().build())
     }
 
     private fun loadReward() {
@@ -177,13 +145,8 @@ class GameAds(
         }
     }
 
-    fun onPause() { adView?.pause() }
-    fun onResume() { adView?.resume() }
     fun destroy() {
         disposed = true
         rewarded = null
-        adView?.destroy()
-        adView = null
-        bannerHost.removeAllViews()
     }
 }
