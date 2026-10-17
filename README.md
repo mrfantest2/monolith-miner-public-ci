@@ -6,9 +6,9 @@ remains authoritative for development, review, and Google Play releases.
 
 Canonical GitHub repository: https://github.com/mrfantest2/monolith-miner
 
-Canonical checkpoint branch: checkpoint/v101-api36-privacy
+Canonical checkpoint branch: checkpoint/cp18-admob-monetization
 
-Canonical source checkpoint SHA: 2bb526177b5aaab15f224b9ef217610d24c35ded
+Canonical source checkpoint SHA: 61d9e25da74cc8cbccd716078e2f73aafadf57a8
 
 GitHub-hosted CI executes JVM tests and builds debug and isolated preview
 APKs. This mirror contains no Play upload keystore, Play credentials,

@@ -42,6 +42,8 @@ class MainActivity : AppCompatActivity() {
     private var saveTimer = 0.0
     private var hapticsEnabled = true
     private var soundEnabled = false
+    private var rewardedAtMs = 0L
+    private var gameAds: GameAds? = null
     private var scientificNotation = false
     private val biomePreviewDepths = intArrayOf(1, 100, 300, 600, 1000)
     private var biomePreviewIndex = -1
@@ -62,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         val preferences = getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         hapticsEnabled = preferences.getBoolean(KEY_HAPTICS, true)
         soundEnabled = preferences.getBoolean(KEY_SOUND, false)
+        rewardedAtMs = preferences.getLong(KEY_REWARDED_AT, 0L)
         scientificNotation = preferences.getBoolean(KEY_NOTATION, false)
         Fmt.scientificNotation = scientificNotation
 
@@ -129,6 +132,10 @@ class MainActivity : AppCompatActivity() {
             refreshUi(false)
         }
         refreshUi(true)
+        gameAds = GameAds(this, binding.adViewContainer) {
+            if (::state.isInitialized) refreshUi(true)
+        }
+        gameAds?.start()
     }
 
     override fun onResume() {
@@ -147,15 +154,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.gameView.start()
+        gameAds?.onResume()
     }
 
     override fun onPause() {
+        gameAds?.onPause()
         binding.gameView.stop()
         save()
         super.onPause()
     }
 
     override fun onDestroy() {
+        gameAds?.destroy()
+        gameAds = null
         toneGenerator?.release()
         toneGenerator = null
         super.onDestroy()
@@ -198,6 +209,29 @@ class MainActivity : AppCompatActivity() {
         getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_SOUND, soundEnabled).apply()
         refreshUi(true)
+    }
+
+    private fun rewardedCooldownRemaining(now: Long = System.currentTimeMillis()): Long =
+        (rewardedAtMs + REWARDED_COOLDOWN_MS - now).coerceAtLeast(0L)
+
+    private fun watchRewardedOre() {
+        if (rewardedCooldownRemaining() > 0L) return
+        gameAds?.showReward {
+            // Save immediately. No reward is granted for a failed or skipped ad.
+            if (rewardedCooldownRemaining() == 0L) {
+                val amount = state.claimRewardedOre()
+                rewardedAtMs = System.currentTimeMillis()
+                getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                    .edit().putLong(KEY_REWARDED_AT, rewardedAtMs).commit()
+                save()
+                refreshUi(true)
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Sponsored ore cache")
+                    .setMessage("Collected ${Fmt.num(amount)} ore. Thanks for supporting Monolith Miner!")
+                    .setPositiveButton("Continue", null)
+                    .show()
+            }
+        }
     }
 
     private fun remainingClock(ms: Long): String {
@@ -457,7 +491,35 @@ class MainActivity : AppCompatActivity() {
                 "Monolith Miner v${BuildConfig.VERSION_NAME} • Animated adventure build",
                 "", false
             ) {}
-        )
+        ) + if (BuildConfig.ADS_ENABLED) {
+            listOf(
+                Row(
+                    "Sponsored ore cache",
+                    if (rewardedCooldownRemaining() > 0L) {
+                        "Reward claimed. Another optional ad becomes available later."
+                    } else {
+                        "Watch an optional ad for ${Fmt.num(state.rewardedOreAmount())} ore."
+                    },
+                    when {
+                        rewardedCooldownRemaining() > 0L -> remainingClock(rewardedCooldownRemaining())
+                        gameAds?.isRewardReady == true -> "WATCH AD"
+                        gameAds?.canRetryReward == true -> "RETRY"
+                        else -> "LOADING"
+                    },
+                    rewardedCooldownRemaining() == 0L &&
+                        (gameAds?.isRewardReady == true || gameAds?.canRetryReward == true)
+                ) {
+                    if (gameAds?.canRetryReward == true) gameAds?.retryReward()
+                    else watchRewardedOre()
+                }
+            ) + if (gameAds?.privacyOptionsRequired == true) {
+                listOf(Row(
+                    "Ad privacy choices",
+                    "Update advertising consent preferences.",
+                    "MANAGE", true
+                ) { gameAds?.showPrivacyOptions() })
+            } else emptyList()
+        } else emptyList()
     }
 
     private fun max1(n: Int) = if (n < 1) 1 else n
@@ -511,5 +573,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_HAPTICS = "haptics"
         private const val KEY_SOUND = "sound"
         private const val KEY_NOTATION = "scientific"
+        private const val KEY_REWARDED_AT = "rewarded_ad_last_ms"
+        private const val REWARDED_COOLDOWN_MS = 30L * 60L * 1000L
     }
 }

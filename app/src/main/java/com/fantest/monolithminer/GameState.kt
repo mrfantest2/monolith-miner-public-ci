@@ -133,6 +133,20 @@ class GameState {
         return amount
     }
 
+    /** Progression-aware award. Granted only by Google's earned-reward callback. */
+    fun rewardedOreAmount(): Double {
+        val proposed = bounty() * 2.0
+        return if (proposed.isFinite() && proposed > 0.0)
+            proposed.coerceIn(500.0, 1.0e12) else 500.0
+    }
+
+    fun claimRewardedOre(): Double {
+        val amount = rewardedOreAmount()
+        ore += amount
+        lifetimeOre += amount
+        return amount
+    }
+
     fun boostCost(type: BoostType): Double = when (type) {
         BoostType.DOUBLE_ORE -> 350.0
         BoostType.OVERDRIVE -> 750.0
